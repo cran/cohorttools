@@ -36,7 +36,7 @@ Person-years scaled by default with 365.25
 \examples{
 library(survival)
 tmp.lt1<-mkratetable(Surv(time,status)~ sex,data=lung)
-tmp.lt2<-mkratetable(Surv(time,status)~ sex,data=lung,add.RR=TRUE,lowest.N=60)
+tmp.lt2<-mkratetable(Surv(time,status)~ sex+ph.ecog,data=lung,add.RR=TRUE,lowest.N=10)
 }
 \seealso{
 \code{\link{survival}}  \code{\link{pyears}}

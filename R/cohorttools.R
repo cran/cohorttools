@@ -1,4 +1,50 @@
 #'
+#' Plots cumulative incidence rates
+#'
+#' @param ftime failure time variable
+#' @param fstatus variable with distinct codes for different causes of failure and also a distinct code for censored observations
+#' @param group plots will be made for each group. If missing then treated as all one group
+#' @param cencode value of fstatus variable which indicates the failure time is censored.
+#' @param pop.length number of population sizes shown
+#' @param ... additional parameters
+#' @seealso \code{\link{survival}}  \code{\link{pyears}}
+#' @note package cmprsk and ggplot2 are utilized
+#' @keywords survival
+#' @author Jari Haukka \email{jari.haukka@@helsinki.fi}
+#' @return if missing group ggplot2 object or if group given named list of ggplot2 objects
+#' @export
+#' @examples
+#' set.seed(2)
+#' ss <- rexp(100)
+#' gg <- factor(sample(1:3,100,replace=TRUE),1:3,c('a','b','c'))
+#' cc <- sample(0:2,100,replace=TRUE)
+#' print(plotcuminc(ftime=ss,fstatus=cc,cencode=0))
+#' print(plotcuminc(ftime=ss,fstatus=cc,cencode=0,group=gg))
+plotcuminc<-function(ftime,fstatus,cencode,pop.length=50,group,...){
+  if(!missing(group)){
+    lv.gr<-sort(unique(group))
+    lv.ulos<-lapply(lv.gr,function(x){
+      plotcuminc(ftime[group==x],fstatus[group==x],cencode=cencode,pop.length=pop.length)})
+    names(lv.ulos)<-lv.gr
+    return(lv.ulos)
+  }
+  lv.cinc<-cmprsk::cuminc(ftime=ftime,fstatus=fstatus,cencode=cencode)
+  lv.df<-data.frame(lv.time=unlist(lapply(lv.cinc,function(x)x$time)),
+                    lv.est=unlist(lapply(lv.cinc,function(x)x$est)))
+  lv.R<-rep(names(lv.cinc),sapply(lv.cinc,function(x)length(x$time)))
+  lv.df$lv.Type<-substr(lv.R,3,nchar(lv.R))
+  lv.pop.time<-seq(min(lv.df$lv.time),max(lv.df$lv.time),length=pop.length)
+  lv.pop<-sapply(lv.pop.time,function(x)sum(ftime>=x))
+  lv.pop<-data.frame(lv.time=lv.pop.time,lv.pop=lv.pop)
+  lv.scale<-max(lv.pop$lv.pop)/max(lv.df$lv.est)
+  lv.time<-NA;lv.est<-NA;lv.Type<-NA # This for check
+  lv.p1<-ggplot(lv.df,aes(x=lv.time))+geom_line(aes(y=lv.est,linetype=lv.Type))+
+    xlab("Time") + ylab("Cumulative incidence")
+  lv.p2<- lv.p1 + geom_line(data=lv.pop,aes(x=lv.time,y = lv.pop/(lv.scale)),size=1)
+  lv.p3<- lv.p2 + scale_y_continuous(sec.axis = sec_axis(~.*(lv.scale), name = "Population size"))
+  lv.p3
+}
+#'
 #' Function makes rate table with confidence intervals for crude incidences (rates)
 #'
 #' @param formula  where Surv object is on lhs and marginal variable(s)
@@ -20,9 +66,24 @@
 #' @examples
 #' library(survival)
 #' tmp.lt1<-mkratetable(Surv(time,status)~ sex,data=lung)
-#' tmp.lt2<-mkratetable(Surv(time,status)~ sex,data=lung,add.RR=TRUE,lowest.N=60)
+#' tmp.lt2<-mkratetable(Surv(time,status)~ sex+ph.ecog,data=lung,add.RR=TRUE,lowest.N=10)
 mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
 {
+  lv.00<-as.character(formula)
+  lv.0<-strsplit(x = lv.00[3],split = "\\+")[[1]]
+  if(length(lv.0)>1){
+    lv.fun.1<-function(x){
+      lv.1<-data.frame(Var=c(colnames(x)[1],rep("",nrow(x)-1)),
+                       Group=as.character(x[,1]),x[,-1],
+                       stringsAsFactors =FALSE,row.names = NULL)
+      lv.1
+    }
+    lv.ulos<-lapply(lv.0,function(x){
+      mkratetable(formula(paste0(paste(rev(lv.00[-3]),collapse = ""),x)),data=data,add.RR=add.RR,lowest.N=lowest.N,...)
+    })
+    lv.ulos<-do.call(rbind,lapply(lv.ulos,lv.fun.1))
+    return(lv.ulos)
+  }
   lv.1<-survival::pyears(formula,data=data,data.frame=TRUE,...)$data
   lv.2<-epitools::pois.exact(x=lv.1$event,pt=lv.1$pyears,conf.level =1-alpha)[,-6]
   lv.2<-cbind(lv.1,lv.2[,-c(1,2)])
@@ -50,6 +111,7 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
   attributes(lv.2)$ratetable.call<-lv.kutsu
   attributes(lv.2)$ratetable.data<-lv.data
   attributes(lv.2)$ratetable.time<-date()
+  rownames(lv.2)<-NULL
   lv.2
 }
 #' Boxes plot summarizing Lexis object
@@ -78,7 +140,6 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
 #' @return Character vector containing Graphviz script. This may used
 #' to create graph by  DiagrammeR::grViz function.
 #' @seealso \code{\link{grViz}}
-#' @seealso
 #' @export
 #' @examples
 #' library(DiagrammeR)
