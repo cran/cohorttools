@@ -29,7 +29,7 @@ and  exact.upper95ci variables
 Function makes rate table with confidence intervals for crude incidences (rates)
 }
 \note{
-packages survival and epitools are utilized.
+packages survival is utilized.
 Frequencies lower than lowest.N replaced by 999999
 Person-years scaled by default with 365.25
 }

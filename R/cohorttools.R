@@ -55,7 +55,7 @@ plotcuminc<-function(ftime,fstatus,cencode,pop.length=50,group,...){
 #' @param lowest.N lowest frequency to be shown
 #' @param ... additional parameter for function survival::pyears
 #' @seealso \code{\link{survival}}  \code{\link{pyears}}
-#' @note packages survival and epitools are utilized.
+#' @note packages survival is utilized.
 #' Frequencies lower than lowest.N replaced by 999999
 #' Person-years scaled by default with 365.25
 #' @keywords survival
@@ -69,6 +69,36 @@ plotcuminc<-function(ftime,fstatus,cencode,pop.length=50,group,...){
 #' tmp.lt2<-mkratetable(Surv(time,status)~ sex+ph.ecog,data=lung,add.RR=TRUE,lowest.N=10)
 mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
 {
+  # Exact CI for Poisson distribution (originally from epitools package)
+  lv.pois.exact<-function (x, pt = 1, conf.level = 0.95)
+  {
+    xc <- cbind(x, conf.level, pt)
+    pt2 <- xc[, 3]
+    results <- matrix(NA, nrow(xc), 6)
+    f1 <- function(x, ans, alpha = alp) {
+      ppois(x, ans) - alpha/2
+    }
+    f2 <- function(x, ans, alpha = alp) 1 - ppois(x, ans) + dpois(x,
+                                                                  ans) - alpha/2
+    for (i in 1:nrow(xc)) {
+      alp <- 1 - xc[i, 2]
+      interval <- c(0, xc[i, 1] * 5 + 4)
+      uci <- uniroot(f1, interval = interval, x = xc[i, 1])$root/pt2[i]
+      if (xc[i, 1] == 0) {
+        lci <- 0
+      }
+      else {
+        lci <- uniroot(f2, interval = interval, x = xc[i,
+                                                       1])$root/pt2[i]
+      }
+      results[i, ] <- c(xc[i, 1], pt2[i], xc[i, 1]/pt2[i],
+                        lci, uci, xc[i, 2])
+    }
+    coln <- c("x", "pt", "rate", "lower", "upper", "conf.level")
+    colnames(results) <- coln
+    data.frame(results)
+  }
+
   lv.00<-as.character(formula)
   lv.0<-strsplit(x = lv.00[3],split = "\\+")[[1]]
   if(length(lv.0)>1){
@@ -85,7 +115,7 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
     return(lv.ulos)
   }
   lv.1<-survival::pyears(formula,data=data,data.frame=TRUE,...)$data
-  lv.2<-epitools::pois.exact(x=lv.1$event,pt=lv.1$pyears,conf.level =1-alpha)[,-6]
+  lv.2<-lv.pois.exact(x=lv.1$event,pt=lv.1$pyears,conf.level =1-alpha)[,-6]
   lv.2<-cbind(lv.1,lv.2[,-c(1,2)])
   lv.3<-rev(names(lv.2))
   lv.3[1:2]<-paste(c("high","low"),sep=".")
