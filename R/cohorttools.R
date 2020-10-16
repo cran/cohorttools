@@ -99,6 +99,9 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
     data.frame(results)
   }
 
+  lv.kutsu<-deparse(substitute(formula))
+  lv.data<-deparse(substitute(data))
+
   lv.00<-as.character(formula)
   lv.0<-strsplit(x = lv.00[3],split = "\\+")[[1]]
   if(length(lv.0)>1){
@@ -111,7 +114,15 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
     lv.ulos<-lapply(lv.0,function(x){
       mkratetable(formula(paste0(paste(rev(lv.00[-3]),collapse = ""),x)),data=data,add.RR=add.RR,lowest.N=lowest.N,...)
     })
+    lv.len<-sapply(lv.ulos,nrow)
     lv.ulos<-do.call(rbind,lapply(lv.ulos,lv.fun.1))
+
+    # Add attributes
+    attributes(lv.ulos)$ratetable.len<-lv.len
+    attributes(lv.ulos)$ratetable.call<-lv.kutsu
+    attributes(lv.ulos)$ratetable.data<-lv.data
+    attributes(lv.ulos)$ratetable.time<-date()
+    # class(lv.ulos)<-"ratetable"
     return(lv.ulos)
   }
   lv.1<-survival::pyears(formula,data=data,data.frame=TRUE,...)$data
@@ -131,8 +142,6 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
     lv.2<-cbind(lv.2,lv.RR)
   }
 
-  lv.kutsu<-deparse(substitute(formula))
-  lv.data<-deparse(substitute(data))
   # Event cell frequencies, if too low replace it with high number
   if(min(lv.2$event)<lowest.N) warning(paste("lowest cell frequency under",
                                              lowest.N,", replaced by 999999"))
@@ -142,6 +151,7 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
   attributes(lv.2)$ratetable.data<-lv.data
   attributes(lv.2)$ratetable.time<-date()
   rownames(lv.2)<-NULL
+  # class(lv.2)<-"ratetable"
   lv.2
 }
 #' Boxes plot summarizing Lexis object
@@ -340,5 +350,51 @@ mkflowchart<-function(N,text.M,text.P,type=1){
     lv.2<-paste0("P",seq(lv.len),"->M",seq(lv.len),'[label="',text.M,'",fontname=Calibri,fontsize=10,arrowsize=.7] \n')
     lv.5<-paste0("P",seq(lv.len),"->P",seq(lv.len)+1,' \n')
     return(c(lv.alku,lv.2,lv.4,lv.5,lv.6,lv.rank,lv.loppu))
+  }
+}
+#'
+#' Function makes plot(s) from ratetable
+#'
+#' @param rt  Rate table produced by function mkratetable
+#' @param RR Boolean, if TRUE rate ratios plotted
+#' @return ggplot object, or list if multiple variables in rate table
+#' @export
+#' @examples
+#' library(ggplot2)
+#' library(survival)
+#' tmp.lt1<-mkratetable(Surv(time,status)~ ph.ecog,data=lung,add.RR = FALSE)
+#' plotratetable(tmp.lt1)
+#' tmp.lt2<-mkratetable(Surv(time,status)~ sex+ph.ecog+cut(age,4),data=lung,add.RR=TRUE,lowest.N=1)
+#' plotratetable(tmp.lt2,TRUE)
+plotratetable<-function(rt,RR=FALSE){
+  if(RR & (ncol(rt)<9)) stop("No RR in ratetable")
+
+  if(names(rt)[1]=="Var"){
+    # lv.1<-rep(seq(attributes(rt)$ratetable.len),attributes(rt)$ratetable.len)
+    lv.0<-unique(rt$Var)
+    lv.1<-rep(lv.0[lv.0!=""],attributes(rt)$ratetable.len)
+    lv.2<-by(rt,lv.1,function(x){
+      if(RR) {
+        names(x)[9:10]<-c("RR.low","RR.high")
+        eval(parse(text=paste("lv.p<-ggplot(x,aes(x=factor(Group),y=RR))")))
+        with(x,lv.p+geom_point()+geom_pointrange(aes(ymin=RR.low,ymax=RR.high))+xlab(x$Var[1])+coord_flip()+
+          geom_hline(yintercept = 1, linetype="dotted"))
+      }
+      else{
+      eval(parse(text=paste("lv.p<-ggplot(x,aes(x=factor(Group),y=rate))")))
+      with(x,lv.p+geom_point()+geom_pointrange(aes(ymin=low,ymax=high))+xlab(x$Var[1])+coord_flip())
+      }
+    })
+    return(lv.2)
+  }
+  if(RR) {
+    names(rt)[8:9]<-c("RR.low","RR.high")
+    eval(parse(text=paste("lv.p<-ggplot(rt,aes(x=factor(",names(rt)[1],"),y=RR))")))
+    with(rt,lv.p+geom_point()+geom_pointrange(aes(ymin=RR.low,ymax=RR.high))+xlab(names(rt)[1])+coord_flip()+
+    geom_hline(yintercept = 1, linetype="dotted"))
+  }
+  else{
+    eval(parse(text=paste("lv.p<-ggplot(rt,aes(x=factor(",names(rt)[1],"),y=rate))")))
+    with(rt,lv.p+geom_point()+geom_pointrange(aes(ymin=low,ymax=high))+xlab(names(rt)[1])+coord_flip())
   }
 }
