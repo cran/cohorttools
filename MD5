@@ -1,11 +1,11 @@
-1a18a33d988598683f166dc20a03843c *DESCRIPTION
+5b42ada395da8bba77aaa9c576c31698 *DESCRIPTION
 9e2d92017c37dfe5f3f8bfe3abcce2f3 *NAMESPACE
-c390ea59214174585c8959116d3b56f4 *R/cohorttools.R
+5c4e81e33b2c6e8af3243e1a125f9cae *R/cohorttools.R
 4fe90227754ff40373b807a3c39424e4 *R/import_packages.R
-9f866cccde7caa7d3eb6516c5738cf08 *man/boxesLx.Rd
-71fde9d48f98f5edfaf9675e40cee11d *man/estim.hazard.Rd
+52d2d040136c57116f5859be825b1d0f *man/boxesLx.Rd
+720620e0fa8758bb1a50457d18a9a483 *man/estim.hazard.Rd
 91498c61539248c0281a4c1cc8d34437 *man/gv2image.Rd
-098cac45f505535e8e4c17df66de3e54 *man/mkflowchart.Rd
-40a1664f024e2c5cf2fe8339914d3dbf *man/mkratetable.Rd
+e196ea5f31a234ae0d4bf1aedf8c1379 *man/mkflowchart.Rd
+7dcf4232b2dbfe009ad0ed2b96806252 *man/mkratetable.Rd
 fdf9bcc66f8b2e31d45ed28157338cf9 *man/plotcuminc.Rd
 cba59e74a4471a477e7db5425eb1fad7 *man/plotratetable.Rd

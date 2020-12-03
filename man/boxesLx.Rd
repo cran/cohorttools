@@ -4,9 +4,20 @@
 \alias{boxesLx}
 \title{Boxes plot summarizing Lexis object}
 \usage{
-boxesLx(x, layout = "circo", prop.penwidth = FALSE, scale.Y = 1,
-  node.attr = "shape=box", edge.attr = "minlen=1", fontsizeN = 14,
-  fontsizeL = 8, show.gr = TRUE)
+boxesLx(
+  x,
+  layout = "circo",
+  prop.penwidth = FALSE,
+  scale.Y = 1,
+  rankdir = "TB",
+  node.attr = "shape=box",
+  edge.attr = "minlen=1",
+  show.loop = FALSE,
+  show.persons = FALSE,
+  fontsizeN = 14,
+  fontsizeL = 8,
+  show.gr = TRUE
+)
 }
 \arguments{
 \item{x}{Lexis object}
@@ -19,6 +30,8 @@ showing transition rates beween states are relative to log of rate.}
 
 \item{scale.Y}{scale for incidence. Scale factor rates, default is 1.}
 
+\item{rankdir}{for graph, default is TB. NOTE! this works best with layout "dot"}
+
 \item{node.attr}{general node attributers.
 Attributes like shape, color, fillcolor, etc. for nodes.
 Consult Graphviz documentation for details
@@ -28,6 +41,10 @@ Consult Graphviz documentation for details
 Attributes like  color, arrowhead, fontcolor  etc. for edges.
 Consult Graphviz documentation for details
 \url{https://www.graphviz.org/doc/info/attrs.html}}
+
+\item{show.loop}{,  should loop (staying in same state be shown), default FALSE}
+
+\item{show.persons}{, should number of persons be shown (entry->exit), default FALSE}
 
 \item{fontsizeN}{font size for nodes}
 
@@ -54,9 +71,14 @@ bmt <- Lexis(exit = list(tft = rfstime/365.25),
                           data = ebmt3)
 bmtr <- cutLexis(bmt, cut = bmt$prtime/365.25, precursor.states = "Tx",
                                            new.state = "PR")
+
 summary(bmtr)
-boxesLx(bmtr)
-boxesLx(bmtr,layout="dot")
+kk<-boxesLx(bmtr)
+\dontrun{
+# Graph to file
+gv2image(kk, file="k1", type="pdf")
+}
+boxesLx(bmtr,layout="dot",rankdir = "LR",show.loop = FALSE,show.persons = TRUE)
 boxesLx(bmtr,node.attr='shape=hexagon color=navy style=filled fillcolor=lightblue',
 edge.attr = ' color=steelblue arrowhead=vee fontcolor="#8801d7" ',
 layout="circo",prop.penwidth=TRUE)

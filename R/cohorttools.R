@@ -154,6 +154,8 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
   # class(lv.2)<-"ratetable"
   lv.2
 }
+
+
 #' Boxes plot summarizing Lexis object
 #'
 #' Creates boxes graph describing Lexis
@@ -164,6 +166,7 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
 #' @param prop.penwidth use line width relative to incidence. If TRUE linewidths of
 #' showing transition rates beween states are relative to log of rate.
 #' @param scale.Y scale for incidence. Scale factor rates, default is 1.
+#' @param rankdir for graph, default is TB. NOTE! this works best with layout "dot"
 #' @param node.attr general node attributers.
 #' Attributes like shape, color, fillcolor, etc. for nodes.
 #' Consult Graphviz documentation for details
@@ -172,6 +175,8 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
 #' Attributes like  color, arrowhead, fontcolor  etc. for edges.
 #' Consult Graphviz documentation for details
 #' \url{https://www.graphviz.org/doc/info/attrs.html}
+#' @param show.loop ,  should loop (staying in same state be shown), default FALSE
+#' @param show.persons , should number of persons be shown (entry->exit), default FALSE
 #' @param fontsizeN font size for nodes
 #' @param fontsizeL font size for edges
 #' @param show.gr  should graph be shown. If TRUE,
@@ -192,9 +197,14 @@ mkratetable<-function(formula,data,alpha=0.05,add.RR=FALSE,lowest.N=0,...)
 #'                           data = ebmt3)
 #' bmtr <- cutLexis(bmt, cut = bmt$prtime/365.25, precursor.states = "Tx",
 #'                                            new.state = "PR")
+#'
 #' summary(bmtr)
-#' boxesLx(bmtr)
-#' boxesLx(bmtr,layout="dot")
+#' kk<-boxesLx(bmtr)
+#' \dontrun{
+#' # Graph to file
+#' gv2image(kk, file="k1", type="pdf")
+#' }
+#' boxesLx(bmtr,layout="dot",rankdir = "LR",show.loop = FALSE,show.persons = TRUE)
 #' boxesLx(bmtr,node.attr='shape=hexagon color=navy style=filled fillcolor=lightblue',
 #' edge.attr = ' color=steelblue arrowhead=vee fontcolor="#8801d7" ',
 #' layout="circo",prop.penwidth=TRUE)
@@ -202,8 +212,11 @@ boxesLx<-function(x,
                   layout="circo",
                   prop.penwidth=FALSE,
                   scale.Y = 1,
+                  rankdir="TB",
                   node.attr="shape=box",
                   edge.attr="minlen=1",
+                  show.loop=FALSE,
+                  show.persons=FALSE,
                   fontsizeN=14,fontsizeL=8,
                   show.gr=TRUE)
 {
@@ -213,25 +226,56 @@ boxesLx<-function(x,
   lv.1$Transitions[,"Risk time:"]<-lv.1$Transitions[,"Risk time:"]/scale.Y
   lv.len<-nrow(lv.1$Transitions)-1
   lv.N<-lv.1$Transitions[1:lv.len,!(colnames(lv.1$Transitions)%in%c(" Records:", " Events:","Risk time:", " Persons:"))]
-  lv.RT<-lv.1$Transitions[1:lv.len,"Risk time:"]
+
+  lv.N.Persons<-lv.1$Transitions[1:lv.len," Persons:" ]
   lv.rate<-lv.N/lv.1$Transitions[1:lv.len,"Risk time:"]
   lv.nd.names<-paste0('"',colnames(lv.N),'"')
-  lv.head.gv<-c("digraph G {\n" ,"layout=",layout,";\n",
-                "node [",node.attr,"];\n","edge [",edge.attr,"];\n")
+  lv.ent.N<-table(status(x, at="entry", by.id=TRUE))
+  lv.ex.N<-table(status(x, at="exit" , by.id=TRUE))
+
+  lv.RT<-lv.1$Transitions[1:lv.len,"Risk time:"]
+  lv.RT<-lv.RT[match(names(lv.ent.N),names(lv.RT))]
+  lv.RT<-paste(round(lv.RT,2))
+  lv.RT<-ifelse(grepl("NA",lv.RT),"",lv.RT)
+
+  lv.head.gv<-c("digraph G {\n" ,
+                "layout=",layout,";\n",
+                "rankdir=",rankdir,";\n",
+                "node [",node.attr,"];\n",
+                "edge [",edge.attr,"];\n")
   lv.main.gv<-NULL
-  lv.main.gv<-c(lv.main.gv,paste0('"',rownames(lv.N),'"'," [label='",
-                                  paste(rownames(lv.N),'\\n',
-                                        round(lv.RT,2)),
-                                  '" , fontsize=',fontsizeN=10,'];\n'))
+
+  if(show.persons)  lv.main.gv<-c(lv.main.gv,paste0('"',
+                                                    names(lv.ent.N),
+                                                    '"',' [label="',
+                                                    paste(names(lv.ent.N),'\\n',
+                                                          lv.RT,'\\n',
+                                                          lv.ent.N,'&rarr;',
+                                                          lv.ex.N),
+                                                    '" , fontsize=',fontsizeN,'];\n'))
+  else{
+    lv.main.gv<-c(lv.main.gv,paste0('"',
+                                    names(lv.ent.N),
+                                    '"',' [label="',
+                                    names(lv.ent.N),'\\n',lv.RT,
+                                    '" , fontsize=',fontsizeN,'];\n'))
+
+  }
   lv.pen1<-log(lv.rate/min(lv.rate[lv.rate>0]))
   lv.pen2<-3*(lv.pen1/max(lv.pen1))+0.2
 
   for(lv.from in seq(nrow(lv.N))) for(lv.to  in seq(ncol(lv.N))){
     if(lv.N[lv.from,lv.to]>0){
       lv.pen3<-ifelse(prop.penwidth,paste0(" penwidth=",lv.pen2[lv.from,lv.to])," ")
-      lv.main.gv<-c(lv.main.gv,paste0('"',rownames(lv.N)[lv.from],'"'),"->",paste0('"',colnames(lv.N)[lv.to],'"'),
-                    paste0('[label="',lv.N[lv.from,lv.to],'\\n(',
-                           round(lv.rate[lv.from,lv.to],2),')",fontsize=',fontsizeL," ",lv.pen3,']'),";\n")
+      if((!show.loop & (rownames(lv.N)[lv.from]==colnames(lv.N)[lv.to]))){lv.main.gv<-lv.main.gv}
+      else {
+        lv.main.gv<-c(lv.main.gv,paste0('"',rownames(lv.N)[lv.from],'"'),"->",
+                      paste0('"',colnames(lv.N)[lv.to],'"'),
+                      paste0('[label="',lv.N[lv.from,lv.to],
+                             '\\n(',
+                             round(lv.rate[lv.from,lv.to],2),
+                             ')",fontsize=',fontsizeL," ",lv.pen3,']'),";\n")
+      }
     }
   }
   lv.gv<-c(lv.head.gv,lv.main.gv,"}\n")
@@ -240,6 +284,7 @@ boxesLx<-function(x,
   }
   invisible(lv.gv)
 }
+
 #'
 #' Function makes image from graphviz code
 #'

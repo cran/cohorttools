@@ -4,8 +4,7 @@
 \alias{mkratetable}
 \title{Function makes rate table with confidence intervals for crude incidences (rates)}
 \usage{
-mkratetable(formula, data, alpha = 0.05, add.RR = FALSE,
-  lowest.N = 0, ...)
+mkratetable(formula, data, alpha = 0.05, add.RR = FALSE, lowest.N = 0, ...)
 }
 \arguments{
 \item{formula}{where Surv object is on lhs and marginal variable(s)

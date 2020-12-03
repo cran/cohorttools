@@ -23,7 +23,7 @@ Function makes flowchart in graphviz
 }
 \examples{
 DiagrammeR::grViz(mkflowchart(N=c(743,32,20),
-text.M=c("Excluded","Excluded \\n other with reasons"),
+text.M=c("Excluded","Excluded \n other with reasons"),
 text.P=c("Studies","Relevant studies","Included in final review"),type=1))
 }
 \author{

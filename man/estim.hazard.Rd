@@ -4,8 +4,15 @@
 \alias{estim.hazard}
 \title{Estimates hazard function using Poisson model}
 \usage{
-estim.hazard(time, status, breaks, knots, time.eval = breaks,
-  alpha = 0.05, ...)
+estim.hazard(
+  time,
+  status,
+  breaks,
+  knots,
+  time.eval = breaks,
+  alpha = 0.05,
+  ...
+)
 }
 \arguments{
 \item{time}{time variables}
