@@ -5,6 +5,8 @@
 \title{Estimates hazard function using Poisson model}
 \usage{
 estim.hazard(
+  formula,
+  data,
   time,
   status,
   breaks,
@@ -15,6 +17,10 @@ estim.hazard(
 )
 }
 \arguments{
+\item{formula}{formula with Surv in LHS, NOTE! only one variable in RHS}
+
+\item{data}{data used by formula}
+
 \item{time}{time variables}
 
 \item{status}{status indicator Lowest value used as sensoring.
@@ -32,7 +38,7 @@ If only one unique value detected, all are assumed events}
 }
 \value{
 Returns data frame with time and hazard function values with attribute 'estim.hazard.param'
-containing estmation parameters (breaks and knots)
+containing estimation parameters (breaks and knots)
 }
 \description{
 Estimates hazard function using Poisson model
@@ -42,6 +48,8 @@ library(survival)
 tmp.hz<-estim.hazard(time=lung$time,status=lung$status)
 head(tmp.hz,2)
 attributes(tmp.hz)$estim.hazard.param # estimation parameters
+tmp.hz2<-estim.hazard(formula=Surv(time,status)~sex,data=lung)
+head(tmp.hz2,2)
 }
 \author{
 Jari Haukka \email{jari.haukka@helsinki.fi}

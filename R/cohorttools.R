@@ -305,7 +305,8 @@ gv2image<-function(gv,file="gv",type="png",engine="dot",...){
 }
 #'
 #' Estimates hazard function using Poisson model
-#'
+#' @param formula formula with Surv in LHS, NOTE! only one variable in RHS
+#' @param data data used by formula
 #' @param time  time variables
 #' @param status status indicator Lowest value used as sensoring.
 #' If only one unique value detected, all are assumed events
@@ -316,46 +317,91 @@ gv2image<-function(gv,file="gv",type="png",engine="dot",...){
 #' @param ... parameters for glm
 #' @author Jari Haukka \email{jari.haukka@@helsinki.fi}
 #' @return Returns data frame with time and hazard function values with attribute 'estim.hazard.param'
-#' containing estmation parameters (breaks and knots)
+#' containing estimation parameters (breaks and knots)
 #' @export
 #' @examples
 #' library(survival)
 #' tmp.hz<-estim.hazard(time=lung$time,status=lung$status)
 #' head(tmp.hz,2)
 #' attributes(tmp.hz)$estim.hazard.param # estimation parameters
-estim.hazard<-function(time,status,breaks,knots,time.eval=breaks,alpha=0.05,...){
-  # require(survival)
+#' tmp.hz2<-estim.hazard(formula=Surv(time,status)~sex,data=lung)
+#' head(tmp.hz2,2)
+estim.hazard<-function(formula,data,time,status,breaks,knots,time.eval=breaks,alpha=0.05,...){
+
   # require(splines)
-  # require(Epi)
-  # Check if there is only one unique status value
-  if(length(unique(status))==1)lv.status<-1
-  else {
-    lv.min.status<-min(status)
-    lv.status<-ifelse(status==lv.min.status,0,1)
-  }
-  # Make Lexis
-  lv.Lx <- Epi::Lexis( exit=list(fu.time=time),
-                  exit.status=lv.status)
-  # Split Lexis, default is 100 breaks
-  if(missing(breaks)) breaks<-with(lv.Lx,c(0,seq(from=min(lex.dur),to=max(lex.dur),
-                                             length=100)))
-  lv.Lx.s <- Epi::splitLexis( lv.Lx, "fu.time", breaks=breaks )
-  # Poisson model with splines
-  # Define knots, if missing
-  if(missing(knots)) knots<-with(lv.Lx,seq(from=min(lex.dur),to=max(lex.dur),
+  #------------------------------
+  # Function to calculate hazard estiomate using Poisson regression
+  #------------------------------
+  lv.fun1<-function(time,status,breaks=breaks,knots=knots,time.eval=breaks,alpha=0.05){
+    # Check if there is only one unique status value
+    if(length(unique(status))==1)lv.status<-1
+    else {
+      lv.min.status<-min(status)
+      lv.status<-ifelse(status==lv.min.status,0,1)
+    }
+    # Make Lexis
+    lv.Lx <- Epi::Lexis( duration=time,
+                         entry=list(fu.time=0),
+                         exit.status=lv.status,
+                         entry.status = 0)
+    # Split Lexis, default is 100 breaks
+    if(missing(breaks)) breaks<-with(lv.Lx,c(0,seq(from=min(lex.dur),to=max(lex.dur),
+                                                   length=100)))
+    lv.Lx.s <- Epi::splitLexis( lv.Lx, "fu.time", breaks=breaks )
+    lv.Lx.s.agg<-stats::aggregate(list(lex.dur=lv.Lx.s$lex.dur,lex.Xst=lv.Lx.s$lex.Xst),list(fu.time=lv.Lx.s$fu.time),sum)
+
+    # Poisson model with splines
+    # Define knots, if missing
+    if(missing(knots)) knots<-with(lv.Lx,seq(from=min(lex.dur),to=max(lex.dur),
                                              length=7))[-c(1,7)]
-  lv.y<-Epi::status(lv.Lx.s, "exit")
-  lv.offs<-Epi::dur(lv.Lx.s)
-  lv.tb<-Epi::timeBand( lv.Lx.s, "fu.time", "left" )
-  lv.Xmat<-splines::ns(lv.tb,knots=knots,intercept = TRUE)
-  lv.m<-glm(lv.y~lv.Xmat+offset(log(lv.offs))-1,family = poisson,maxit=50,...)
-  if(missing(time.eval))time.eval<-breaks
-  lv.Xmat.eval<-splines::ns(time.eval,knots=knots,intercept = TRUE)
-  lv.lambda <- Epi::ci.lin( lv.m, ctr.mat=lv.Xmat.eval, Exp=TRUE,alpha=alpha )
-  lv.ulos<-data.frame(time.eval=time.eval,lv.lambda)
-  names(lv.ulos)[6:8]<-c("haz","haz.lo","haz.hi")
-  lv.ulos<-lv.ulos[,-c(4,5)]
-  attributes(lv.ulos)$estim.hazard.param<-list(breaks=breaks,knots=knots)
+    lv.Xmat<-splines::ns(lv.Lx.s.agg$fu.time,knots=knots,intercept = TRUE)
+    lv.m<-glm(lex.Xst~lv.Xmat+offset(log(lex.dur))-1,family = poisson,data=lv.Lx.s.agg,maxit=50,...)
+
+    if(missing(time.eval))time.eval<-breaks
+    lv.Xmat.eval<-splines::ns(time.eval,knots=knots,intercept = TRUE)
+    lv.lambda <- Epi::ci.lin( lv.m, ctr.mat=lv.Xmat.eval, Exp=TRUE,alpha=alpha )
+    lv.ulos<-data.frame(time.eval=time.eval,lv.lambda)
+    names(lv.ulos)[6:8]<-c("haz","haz.lo","haz.hi")
+    lv.ulos<-lv.ulos[,-c(4,5)]
+    attributes(lv.ulos)$estim.hazard.param<-list(breaks=breaks,knots=knots)
+    lv.ulos
+  }
+
+  #------------------------------
+  # If missing formula, old style
+  #------------------------------
+  if(missing(formula)){
+    return(lv.fun1(time=time,status=status,breaks=breaks,knots=knots,time.eval=breaks,alpha=alpha))
+  }
+
+  #------------------------------
+  # With formula, new style
+  #------------------------------
+
+  # Create survival object and make working data frame
+  lv.Surv<-eval(parse(text=paste0("with(data,",as.character(formula)[2],")")))
+
+  # If no grouping in formula
+  if(as.character(formula)[3]=="1"){
+    lv.dt<-data.frame(time=lv.Surv[,1],status=lv.Surv[,2])
+    return(lv.fun1(time=lv.dt$time,status=lv.dt$status,breaks=breaks,knots=knots,time.eval=breaks,alpha=alpha))
+  }
+
+  lv.txt<-unlist(strsplit(as.character(formula)[3],fixed = TRUE,split = "+"))[1]
+  lv.var2<-eval(parse(text=paste0("with(data,",lv.txt,")")))
+  lv.dt<-data.frame(time=lv.Surv[,1],status=lv.Surv[,2],Indeksi=lv.var2)
+  # lv.dt<-data.frame(time=lv.Surv[,1],status=lv.Surv[,2],Indeksi=data[,as.character(formula)[3]])
+  # Determine default values, if missing arguments
+  if(missing(breaks)) breaks<-with(lv.dt,c(0,seq(from=min(time),to=max(time),length=100)))
+  if(missing(knots)) knots<-with(lv.dt,seq(from=min(time),to=max(time),length=7))[-c(1,7)]
+
+  lv.2<-by(data=lv.dt,INDICES =lv.dt$Indeksi,
+           function(x){
+             lv.fun1(time=x$time,status=x$status,breaks=breaks,knots=knots,time.eval=breaks,alpha=alpha)
+           })
+  lv.ulos<-do.call("rbind",lv.2)
+  lv.ulos$lv.NimiPitka<-factor(rep(names(lv.2),sapply(lv.2,nrow)))
+  names(lv.ulos)[ncol(lv.ulos)]<-lv.txt
   lv.ulos
 }
 #'

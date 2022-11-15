@@ -1,9 +1,9 @@
-5b42ada395da8bba77aaa9c576c31698 *DESCRIPTION
+132b9bedb3e054e3e529238d1c7549db *DESCRIPTION
 9e2d92017c37dfe5f3f8bfe3abcce2f3 *NAMESPACE
-5c4e81e33b2c6e8af3243e1a125f9cae *R/cohorttools.R
+cd91058c46257ce8a40a5614c6ef1701 *R/cohorttools.R
 4fe90227754ff40373b807a3c39424e4 *R/import_packages.R
 52d2d040136c57116f5859be825b1d0f *man/boxesLx.Rd
-720620e0fa8758bb1a50457d18a9a483 *man/estim.hazard.Rd
+a46d6f50470161a0497fa46b1b358007 *man/estim.hazard.Rd
 91498c61539248c0281a4c1cc8d34437 *man/gv2image.Rd
 e196ea5f31a234ae0d4bf1aedf8c1379 *man/mkflowchart.Rd
 7dcf4232b2dbfe009ad0ed2b96806252 *man/mkratetable.Rd
