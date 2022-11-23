@@ -13,6 +13,8 @@ estim.hazard(
   knots,
   time.eval = breaks,
   alpha = 0.05,
+  use.GAM = FALSE,
+  print.GAM.summary = FALSE,
   ...
 )
 }
@@ -33,6 +35,10 @@ If only one unique value detected, all are assumed events}
 \item{time.eval}{in which time points hazard function is evaluate.}
 
 \item{alpha}{significance level for confidence intervals}
+
+\item{use.GAM}{logical determining if generalized additive model (GAM) is used}
+
+\item{print.GAM.summary}{logical determining if summary of GAM is printed}
 
 \item{...}{parameters for glm}
 }

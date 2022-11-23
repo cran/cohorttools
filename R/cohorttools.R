@@ -314,6 +314,8 @@ gv2image<-function(gv,file="gv",type="png",engine="dot",...){
 #' @param knots knots for natural splines used in estimation of hazard function
 #' @param time.eval in which time points hazard function is evaluate.
 #' @param alpha significance level for confidence intervals
+#' @param use.GAM logical determining if generalized additive model (GAM) is used
+#' @param print.GAM.summary logical determining if summary of GAM is printed
 #' @param ... parameters for glm
 #' @author Jari Haukka \email{jari.haukka@@helsinki.fi}
 #' @return Returns data frame with time and hazard function values with attribute 'estim.hazard.param'
@@ -326,11 +328,12 @@ gv2image<-function(gv,file="gv",type="png",engine="dot",...){
 #' attributes(tmp.hz)$estim.hazard.param # estimation parameters
 #' tmp.hz2<-estim.hazard(formula=Surv(time,status)~sex,data=lung)
 #' head(tmp.hz2,2)
-estim.hazard<-function(formula,data,time,status,breaks,knots,time.eval=breaks,alpha=0.05,...){
+estim.hazard<-function(formula,data,time,status,breaks,knots,
+                           time.eval=breaks,alpha=0.05,use.GAM=FALSE,print.GAM.summary=FALSE,...){
 
   # require(splines)
   #------------------------------
-  # Function to calculate hazard estiomate using Poisson regression
+  # Function to calculate hazard estimate using Poisson regression
   #------------------------------
   lv.fun1<-function(time,status,breaks=breaks,knots=knots,time.eval=breaks,alpha=0.05){
     # Check if there is only one unique status value
@@ -381,27 +384,94 @@ estim.hazard<-function(formula,data,time,status,breaks,knots,time.eval=breaks,al
   # Create survival object and make working data frame
   lv.Surv<-eval(parse(text=paste0("with(data,",as.character(formula)[2],")")))
 
-  # If no grouping in formula
-  if(as.character(formula)[3]=="1"){
+  # If no grouping in formula RHS and no GAM
+  if(as.character(formula)[3]=="1"&!use.GAM){
     lv.dt<-data.frame(time=lv.Surv[,1],status=lv.Surv[,2])
     return(lv.fun1(time=lv.dt$time,status=lv.dt$status,breaks=breaks,knots=knots,time.eval=breaks,alpha=alpha))
   }
 
-  lv.txt<-unlist(strsplit(as.character(formula)[3],fixed = TRUE,split = "+"))[1]
-  lv.var2<-eval(parse(text=paste0("with(data,",lv.txt,")")))
-  lv.dt<-data.frame(time=lv.Surv[,1],status=lv.Surv[,2],Indeksi=lv.var2)
-  # lv.dt<-data.frame(time=lv.Surv[,1],status=lv.Surv[,2],Indeksi=data[,as.character(formula)[3]])
-  # Determine default values, if missing arguments
-  if(missing(breaks)) breaks<-with(lv.dt,c(0,seq(from=min(time),to=max(time),length=100)))
-  if(missing(knots)) knots<-with(lv.dt,seq(from=min(time),to=max(time),length=7))[-c(1,7)]
+  # Make data.frame to use in analyses
+  if(as.character(formula)[3]=="1"&use.GAM){
+    lv.dt<-data.frame(time=lv.Surv[,1],status=lv.Surv[,2])
+  }
+  else{
+    lv.cvar<-unlist(strsplit(as.character(formula)[3],fixed = TRUE,split = "+"))[1]
+    lv.var2<-eval(parse(text=paste0("with(data,",lv.cvar,")")))
+    lv.dt<-data.frame(time=lv.Surv[,1],status=lv.Surv[,2],Indeksi=lv.var2)
+  }
+  #------------------------------
+  # Using GAM
+  #------------------------------
+  if(use.GAM){
+    # Make Lexis
+    lv.Lx <- with(lv.dt,Epi::Lexis( duration=time,
+                                    entry=list(fu.time=0),
+                                    exit.status=status,
+                                    entry.status = 0,data=lv.dt))
 
+    # Split Lexis, default is 100 breaks
+    if(missing(breaks)) breaks<-with(lv.Lx,c(0,seq(from=min(lex.dur),to=max(lex.dur),length=100)))
+    lv.Lx.s <- Epi::splitLexis( lv.Lx, "fu.time", breaks=breaks )
+
+    if(as.character(formula)[3]=="1"){
+      lv.Lx.s.agg<-with(lv.Lx,stats::aggregate(list(lex.dur=lv.Lx.s$lex.dur,lex.Xst=lv.Lx.s$lex.Xst),list(fu.time=lv.Lx.s$fu.time),sum))
+      lv.m<-mgcv::gam(lex.Xst ~ s(fu.time)+offset(log(lex.dur)),data=lv.Lx.s.agg,family=poisson)
+      lv.dt.new<-data.frame(fu.time=lv.Lx.s.agg$fu.time,lex.dur=1)
+      lv.apu.p<-mgcv::predict.gam(lv.m,type="link",se.fit = TRUE,newdata=lv.dt.new)
+      if(print.GAM.summary){print(summary(lv.m))}
+      lv.apu.ulos<-with(lv.Lx.s.agg,
+                        data.frame(time.eval=fu.time,
+                                   haz=exp(lv.apu.p$fit),
+                                   haz.lo=exp(lv.apu.p$fit+lv.apu.p$se.fit*qnorm(alpha/2)),
+                                   haz.hi=exp(lv.apu.p$fit+lv.apu.p$se.fit*qnorm(1-alpha/2))
+                        ))
+      return(lv.apu.ulos)
+    }
+    else{
+
+      lv.Lx.s.agg<-with(lv.Lx,stats::aggregate(list(lex.dur=lv.Lx.s$lex.dur,lex.Xst=lv.Lx.s$lex.Xst),
+                                               list(fu.time=lv.Lx.s$fu.time,Indeksi=lv.Lx.s$Indeksi),sum))
+      lv.m<-by(data = lv.Lx.s.agg,INDICES = lv.Lx.s.agg$Indeksi,
+               function(x){
+                 lv.m<-mgcv::gam(lex.Xst ~ s(fu.time)+offset(log(lex.dur)),data=x,family=poisson)
+                 lv.dt.new<-data.frame(fu.time=x$fu.time,lex.dur=1)
+                 lv.apu.p<-mgcv::predict.gam(lv.m,type="link",se.fit = TRUE,newdata=lv.dt.new)
+
+                 if(print.GAM.summary){
+                   cat("\n--------------------\nGAM summary for ",
+                       lv.cvar," with level ",x$Indeksi[1],
+                       "\n--------------------\n")
+                   print(summary(lv.m))
+                   cat("\n--------------------\n")
+                 }
+                 lv.apu.ulos<-with(x,
+                                   data.frame(time.eval=fu.time,
+                                              haz=exp(lv.apu.p$fit),
+                                              haz.lo=exp(lv.apu.p$fit+lv.apu.p$se.fit*qnorm(alpha/2)),
+                                              haz.hi=exp(lv.apu.p$fit+lv.apu.p$se.fit*qnorm(1-alpha/2))
+                                   ))
+                 return(lv.apu.ulos)
+               })
+      lv.apu.ulos<-data.frame(do.call("rbind",lv.m),Indeksi=rep(names(lv.m),sapply(lv.m,nrow)))
+      names(lv.apu.ulos)[ncol(lv.apu.ulos)]<-lv.cvar
+      return(lv.apu.ulos)
+    }
+  }
+
+  #------------------------------
+  # No GAM used
+  #------------------------------
+
+  if (missing(breaks)) breaks <- with(lv.dt, c(0, seq(from = min(time), to = max(time),length = 100)))
+  if (missing(knots)) knots <- with(lv.dt, seq(from = min(time), to = max(time),length = 7))[-c(1, 7)]
   lv.2<-by(data=lv.dt,INDICES =lv.dt$Indeksi,
            function(x){
              lv.fun1(time=x$time,status=x$status,breaks=breaks,knots=knots,time.eval=breaks,alpha=alpha)
            })
+
   lv.ulos<-do.call("rbind",lv.2)
   lv.ulos$lv.NimiPitka<-factor(rep(names(lv.2),sapply(lv.2,nrow)))
-  names(lv.ulos)[ncol(lv.ulos)]<-lv.txt
+  names(lv.ulos)[ncol(lv.ulos)]<-lv.cvar
   lv.ulos
 }
 #'
